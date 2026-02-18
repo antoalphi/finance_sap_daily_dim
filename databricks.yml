@@ -25,8 +25,8 @@ targets:
       host: https://adb-7488500312027058.18.azuredatabricks.net
       root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: finance
-      schema: sap_bronze
+      catalog: demo_finance_sap
+      schema: bronze
       job_pause_status: "PAUSED"
 
   prod:
@@ -35,8 +35,8 @@ targets:
       host: https://adb-7488500312027058.18.azuredatabricks.net
       root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: finance
-      schema: sap_bronze
+      catalog: demo_finance_sap
+      schema: bronze
       job_pause_status: "UNPAUSED"
     permissions:
       - user_name: antony@diggibyte.com
