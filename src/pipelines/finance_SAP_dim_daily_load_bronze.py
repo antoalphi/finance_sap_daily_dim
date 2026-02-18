@@ -103,6 +103,7 @@ for folder_name in cfg.z_tables:
         final_df = reduce(DataFrame.unionByName, dfs)
 
         # Record hash (computed after union)
-        record_hash = sha2(concat_ws("||", *final_df.columns), 256)
+        #record_hash = sha2(concat_ws("||", *final_df.columns), 256)
+        #return final_df.withColumn("_record_hash", record_hash)
 
-        return final_df.withColumn("_record_hash", record_hash)
+        return final_df
