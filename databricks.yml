@@ -1,0 +1,43 @@
+# This is a Databricks asset bundle definition for sap_sdp_ingestion.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: Finance_SAP_dim_daily_load
+  uuid: 24401583-9958-4b55-a4c6-28c4d4aa3033
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+# Variable declarations. These variables are assigned in the dev/prod targets below.
+variables:
+  catalog:
+    description: The catalog to use
+  schema:
+    description: The schema to use
+  job_pause_status:
+    description: Pause status for job schedule
+
+targets:
+  dev:
+    mode: production
+    default: true
+    workspace:
+      host: https://adb-7488500312027058.18.azuredatabricks.net
+      root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: finance
+      schema: sap_bronze
+      job_pause_status: "PAUSED"
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-7488500312027058.18.azuredatabricks.net
+      root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: finance
+      schema: sap_bronze
+      job_pause_status: "UNPAUSED"
+    permissions:
+      - user_name: antony@diggibyte.com
+        level: CAN_MANAGE

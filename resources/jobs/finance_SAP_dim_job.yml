@@ -1,0 +1,24 @@
+resources:
+  jobs:
+    finance_SAP_dim_daily_load:
+      name: "finance_SAP_dim_daily_load"
+
+      tasks:
+        - task_key: finance_SAP_dim_daily_load
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.finance_SAP_dim_daily_load_pipeline.id}
+
+      schedule:
+        quartz_cron_expression: "0 0 2 * * ?"
+        timezone_id: "Asia/Kolkata"
+        pause_status: ${var.job_pause_status}
+
+      max_concurrent_runs: 1
+
+      email_notifications:
+        on_failure:
+          - "antony@diggibyte.com"
+
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true

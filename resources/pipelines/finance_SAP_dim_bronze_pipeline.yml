@@ -1,0 +1,20 @@
+resources:
+  pipelines:
+    finance_SAP_dim_daily_load_pipeline:
+      name: "finance_SAP_dim_daily_load_pipeline"
+      target: "${var.schema_bronze}"
+      catalog: "${var.catalog}"
+      continuous: false
+      channel: "CURRENT"
+      photon: true
+
+      libraries:
+        - file:
+            path: ../../src/pipelines/finance_SAP_dim_daily_load_bronze.py
+
+      configuration:
+        finance_SAP_dim.catalog: "${var.catalog}"
+        finance_SAP_dim.schema.bronze: "${var.schema_bronze}"
+        finance_SAP_dim.adls.landing.path: "${var.adls_landing_path}"
+        finance_SAP_dim.checkpoint.path: "${var.checkpoint_path}"
+        finance_SAP_dim.schema_path: "${var.schema_path}"
