@@ -45,7 +45,7 @@ def detect_delimiter(file_path: str) -> str:
     return best_delim
 
 
-cfg = get_config(spark)
+cfg = get_config(spark, layer="bronze")
 pipeline_run_id = spark.conf.get("spark.databricks.job.runId", "unknown")
 
 # Loop only configured Z tables

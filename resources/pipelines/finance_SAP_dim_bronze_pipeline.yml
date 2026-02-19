@@ -2,7 +2,7 @@ resources:
   pipelines:
     finance_SAP_dim_daily_load_pipeline:
       name: "finance_SAP_dim_daily_load_pipeline"
-      target: "${var.schema}"
+      target: "${var.bronze_schema}"
       catalog: "${var.catalog}"
       continuous: false
       channel: "CURRENT"
@@ -15,10 +15,30 @@ resources:
       configuration:
         # These values will be available inside spark.conf.get()
         finance_SAP_dim.catalog: "${var.catalog}"
-        finance_SAP_dim.schema.bronze: "${var.schema}"
+        finance_SAP_dim.schema.bronze: "${var.bronze_schema}"
         finance_SAP_dim.adls.landing.path: "${var.adls_landing_path}"
         finance_SAP_dim.checkpoint.path: "${var.checkpoint_path}"
         finance_SAP_dim.schema_path: "${var.schema_path}"
 
         # IMPORTANT: Pipeline configuration values must always be strings
+        finance_SAP_dim.z_tables: "${var.z_tables}"
+    
+    finance_SAP_dim_daily_load_silver_pipeline:
+      name: "finance_SAP_dim_daily_load_silver"
+      target: "${var.silver_schema}"
+      catalog: "${var.catalog}"
+      continuous: false
+      channel: "CURRENT"
+      photon: true
+
+      libraries:
+        - file:
+            path: ../../src/pipelines/finance_SAP_dim_daily_load_silver.py
+
+      configuration:
+        # These values will be available inside spark.conf.get()
+        finance_SAP_dim.catalog: "${var.catalog}"
+        finance_SAP_dim.schema.silver: "${var.silver_schema}"
+        finance_SAP_dim.adls.landing.path: "${var.adls_landing_path}"
+        finance_SAP_dim.checkpoint.path: "${var.checkpoint_path}"
         finance_SAP_dim.z_tables: "${var.z_tables}"

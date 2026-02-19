@@ -1,5 +1,6 @@
-# This is a Databricks asset bundle definition for sap_sdp_ingestion.
-# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+# Databricks Asset Bundle definition
+# See https://docs.databricks.com/dev-tools/bundles/index.html
+
 bundle:
   name: Finance_SAP_dim_daily_load
   uuid: 24401583-9958-4b55-a4c6-28c4d4aa3033
@@ -8,36 +9,82 @@ include:
   - resources/*.yml
   - resources/*/*.yml
 
-# Variable declarations. These variables are assigned in the dev/prod targets below.
+# ----------------------------------------------------------
+# Variables Declaration (ALL vars used in pipeline.yml MUST be here)
+# ----------------------------------------------------------
 variables:
   catalog:
     description: The catalog to use
-  schema:
-    description: The schema to use
+
+  bronze_schema:
+    description: Bronze schema name
+
+  silver_schema:
+    description: Silver schema name
+
+  gold_schema:
+    description: Gold schema name
+
   job_pause_status:
     description: Pause status for job schedule
 
+  adls_landing_path:
+    description: "ADLS Gen2 Landing path (contains folders like z_date/, z_distch/ etc)"
+
+  checkpoint_path:
+    description: "Checkpoint path for streaming ingestion"
+
+  schema_path:
+    description: "Schema path for schema inference / storage"
+
+  z_tables:
+    description: "Comma-separated list of SAP Z lookup table folder names"
+
+
+# ----------------------------------------------------------
+# Targets
+# ----------------------------------------------------------
 targets:
   dev:
     mode: production
     default: true
+
     workspace:
       host: https://adb-7488500312027058.18.azuredatabricks.net
       root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
+
     variables:
       catalog: demo_finance_sap
-      schema: bronze
+      bronze_schema: bronze
+      silver_schema: silver
+      gold_schema: gold
       job_pause_status: "PAUSED"
+
+      adls_landing_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/landing/dim"
+      checkpoint_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/checkpoint"
+      schema_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/schema"
+      z_tables: "z_date,z_distch,z_material,z_prfcent,z_prodgrp"
+
 
   prod:
     mode: production
+
     workspace:
       host: https://adb-7488500312027058.18.azuredatabricks.net
       root_path: /Workspace/Users/antony@diggibyte.com/.bundle/${bundle.name}/${bundle.target}
+
     variables:
       catalog: demo_finance_sap
-      schema: bronze
+      bronze_schema: bronze
+      silver_schema: silver
+      gold_schema: gold
       job_pause_status: "UNPAUSED"
+
+      adls_landing_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/landing/dim"
+      checkpoint_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/checkpoint"
+      schema_path: "abfss://sap-ingestion@dbxucst.dfs.core.windows.net/schema"
+      z_tables: "z_date,z_distch,z_material,z_prfcent,z_prodgrp"
+
     permissions:
       - user_name: antony@diggibyte.com
         level: CAN_MANAGE

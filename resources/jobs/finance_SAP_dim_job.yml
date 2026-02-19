@@ -1,12 +1,18 @@
 resources:
   jobs:
     finance_SAP_dim_daily_load:
-      name: "finance_SAP_dim_daily_load"
+      name: "finance_SAP_dim_daily_load_Job"
 
       tasks:
         - task_key: finance_SAP_dim_daily_load
           pipeline_task:
             pipeline_id: ${resources.pipelines.finance_SAP_dim_daily_load_pipeline.id}
+        
+        - task_key: silver_finance_SAP_dim_daily_load
+          depends_on:
+            - task_key: finance_SAP_dim_daily_load
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.finance_SAP_dim_daily_load_silver_pipeline.id}
 
       schedule:
         quartz_cron_expression: "0 0 2 * * ?"
