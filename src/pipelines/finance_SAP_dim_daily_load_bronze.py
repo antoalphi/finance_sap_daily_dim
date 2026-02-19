@@ -33,10 +33,9 @@ if not logger.handlers:  # Prevent duplicate logs in notebook reruns
 
     logger.addHandler(handler)
 
-RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
-logger.info(f"[RUN_ID={RUN_ID}] Bronze Pipeline started")
-
-
+ 
+logger.info("Bronze Pipeline started")
+ 
 # -------------------------------
 # Helper Functions
 # -------------------------------

@@ -14,6 +14,7 @@ from pyspark.sql.functions import (
 from pyspark.sql.types import DecimalType, IntegerType
 from config import get_config
 
+
 # ------------------------------------------------------------------------------
 # Logger Setup (Best Practice)
 # ------------------------------------------------------------------------------
@@ -31,9 +32,9 @@ if not logger.handlers:  # Prevent duplicate logs in notebook reruns
     handler.setFormatter(formatter)
 
     logger.addHandler(handler)
+ 
+logger.info("Silver Pipeline started")
 
-RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
-logger.info(f"[RUN_ID={RUN_ID}] Silver Pipeline started")
 
 # -------------------------------
 # Helper Functions
@@ -57,11 +58,6 @@ def standardize_column_name(col_name: str) -> str:
     """
     Converts column name into UPPER_CASE_WITH_UNDERSCORES.
 
-    Why this is important?
-    - SAP extracted CSV files often have inconsistent headers.
-    - Some columns may contain spaces, '-', '/', special characters.
-    - Silver layer should have consistent naming standard.
-
     Examples:
       'Material Code '  -> 'MATERIAL_CODE'
       'Profit-Center'   -> 'PROFIT_CENTER'
@@ -83,11 +79,6 @@ def standardize_column_name(col_name: str) -> str:
 def standardize_all_column_names(df):
     """
     Renames ALL columns in the dataframe into UPPER_CASE_WITH_UNDERSCORES format.
-
-    Why this is important?
-    - Bronze layer is raw ingestion (header names may not be clean).
-    - Silver layer must follow strict naming conventions.
-    - Makes downstream joins and reporting consistent.
     """
     for c in df.columns:
         df = df.withColumnRenamed(c, standardize_column_name(c))
@@ -97,11 +88,6 @@ def standardize_all_column_names(df):
 def trim_all_string_columns(df):
     """
     Removes unwanted leading/trailing spaces from ALL string columns.
-
-    Why this is important?
-    - SAP CSV files sometimes contain values like 'ABC ' or ' ABC'
-    - Without trimming, joins may fail.
-    - Example: 'A01' != 'A01 ' (this creates data quality issues)
     """
     for c, t in df.dtypes:
         if t == "string":
@@ -112,11 +98,7 @@ def trim_all_string_columns(df):
 def drop_metadata_columns(df):
     """
     Drops ingestion metadata columns from Bronze layer.
-
-    Why this is important?
-    - Bronze has columns like _ingestion_time, _load_date, _pipeline_run_id, etc.
-    - These are useful in Bronze but not required in Silver output.
-    - Silver should contain only business columns + minimal audit columns.
+    Example: _rescued_data, _ingestion_time, etc.
     """
     meta_cols = [c for c in df.columns if c.startswith("_")]
     return df.drop(*meta_cols)
@@ -125,15 +107,6 @@ def drop_metadata_columns(df):
 def apply_casting_rules(df, casting_rules: dict):
     """
     Applies datatype casting rules on selected columns.
-
-    Why this is important?
-    - Bronze uses inferSchema, which may infer wrong types.
-    - Silver must have stable datatypes for analytics and joins.
-
-    Example:
-      year should always be int,
-      amount should always be decimal,
-      date should always be date type.
     """
 
     for c, dtype in casting_rules.items():
@@ -164,27 +137,9 @@ def apply_casting_rules(df, casting_rules: dict):
     return df
 
 
-def get_bad_records(df, required_cols: list):
-    """
-    Returns records where required columns are missing (NULL or blank).
-    These will go into Quarantine table.
-    """
-    condition = None
-    for c in required_cols:
-        if c in df.columns:
-            expr = (col(c).isNull()) | (trim(col(c)) == "")
-            condition = expr if condition is None else (condition | expr)
-
-    if condition is None:
-        return df.limit(0)
-
-    return df.filter(condition)
-
-
 def get_good_records(df, required_cols: list):
     """
     Returns only valid records where required columns are not NULL or blank.
-    These will go into Silver table.
     """
     condition = None
     for c in required_cols:
@@ -202,14 +157,10 @@ def get_good_records(df, required_cols: list):
 # Config
 # -------------------------------
 
-# Reads config values injected from pipeline.yml (DLT configuration section)
 cfg = get_config(spark, layer="silver")
 
-# Captures job run id for audit purpose
 pipeline_run_id = spark.conf.get("spark.databricks.job.runId", "unknown")
 
-# Bronze schema should be passed via pipeline.yml configuration
-# Default is bronze (safe fallback)
 bronze_schema = spark.conf.get("finance_SAP_dim.schema.bronze", "bronze")
 
 
@@ -249,74 +200,11 @@ for folder_name in cfg.z_tables:
     # Silver table name is same as bronze (recommended for easy usage)
     silver_table = f"{bronze_table}"
 
-    # Quarantine table to store invalid records
-    quarantine_table = f"{bronze_table}_quarantine"
-
     casting_rules = TABLE_CASTING_RULES.get(bronze_table, {})
     required_cols = TABLE_REQUIRED_COLUMNS.get(bronze_table, [])
 
     # Fully qualified bronze table reference
-    # Example: demo_finance_sap.bronze.z_distch
     bronze_full_name = f"{cfg.catalog}.{bronze_schema}.{bronze_table}"
-
-
-    # -------------------------------
-    # Quarantine Table
-    # -------------------------------
-    @dlt.table(
-        name=quarantine_table,
-        comment=f"Quarantine table for bad records from {bronze_table}",
-        table_properties={
-            "quality": "quarantine",
-            "layer": "silver",
-            "source": "finance_sap_dimension"
-        }
-    )
-    def build_quarantine(
-        bronze_full_name=bronze_full_name,
-        bronze_table=bronze_table,
-        required_cols=required_cols,
-        casting_rules=casting_rules,
-        quarantine_table=quarantine_table
-    ):
-
-        # Logging (visible in DLT Event Logs)
-        logger.info(f"Starting quarantine table build for {bronze_table}")
-        logger.info(f"[SILVER-QUARANTINE] ---------------------------------------------")
-        logger.info(f"[SILVER-QUARANTINE] Reading Bronze Table : {bronze_full_name}")
-        logger.info(f"[SILVER-QUARANTINE] Writing Table       : {quarantine_table}")
-        logger.info(f"[SILVER-QUARANTINE] Required Columns    : {required_cols}")
-        logger.info(f"[SILVER-QUARANTINE] Casting Rules       : {casting_rules}")
-        logger.info(f"[SILVER-QUARANTINE] Pipeline Run ID     : {pipeline_run_id}")
-
-        # IMPORTANT:
-        # Since Bronze and Silver are separate DLT pipelines,
-        # we cannot use dlt.read(bronze_table).
-        # We must read bronze using fully qualified name via spark.table().
-        df = spark.table(bronze_full_name)
-
-        # Step 1: Standardize column names into UPPER_CASE_WITH_UNDERSCORES
-        # Example: "Day Suffix" -> "DAY_SUFFIX"
-        df = standardize_all_column_names(df)
-
-        # Step 2: Trim all string columns (remove leading/trailing spaces)
-        df = trim_all_string_columns(df)
-
-        # Step 3: Apply datatype casting rules (int/date/decimal conversions)
-        df = apply_casting_rules(df, casting_rules)
-
-        # Step 4: Filter out bad records (missing mandatory columns)
-        bad_df = get_bad_records(df, required_cols)
-
-        # Step 5: Add quarantine audit metadata
-        bad_df = (
-            bad_df.withColumn("_quarantine_reason", lit("Missing required column(s)"))
-                  .withColumn("_quarantine_time", current_timestamp())
-                  .withColumn("_silver_pipeline_run_id", lit(pipeline_run_id))
-                  .withColumn("_source_bronze_table", lit(bronze_table))
-        )
-
-        return bad_df
 
 
     # -------------------------------
@@ -356,23 +244,18 @@ for folder_name in cfg.z_tables:
         # -------------------------------
 
         # Step 1: Standardize column names into UPPER_CASE_WITH_UNDERSCORES
-        # This ensures consistency across all silver tables.
         df = standardize_all_column_names(df)
 
         # Step 2: Trim all string columns
-        # Removes leading/trailing spaces so joins and comparisons work correctly.
         df = trim_all_string_columns(df)
 
         # Step 3: Apply datatype casting rules
-        # Converts required fields into correct types (int/date/decimal).
         df = apply_casting_rules(df, casting_rules)
 
-        # Step 4: Keep only good records
-        # Filters out rows where mandatory business columns are missing.
+        # Step 4: Keep only good records (mandatory columns check)
         df = get_good_records(df, required_cols)
 
-        # Step 5: Drop Bronze metadata columns (_ingestion_time, _load_date, etc.)
-        # Silver should not carry Bronze-level ingestion metadata.
+        # Step 5: Drop Bronze metadata columns (_rescued_data, _ingestion_time, etc.)
         df = drop_metadata_columns(df)
 
         # -------------------------------
@@ -385,6 +268,8 @@ for folder_name in cfg.z_tables:
         )
 
         # Step 6: Remove duplicates
-        # Ensures stable silver output if bronze has duplicates
+        df = df.dropDuplicates()
+
         logger.info(f"[SILVER] Finished building dataframe for silver table: {silver_table}")
-        return df.dropDuplicates()
+
+        return df
