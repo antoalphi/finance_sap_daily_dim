@@ -1,5 +1,8 @@
+import datetime
+import sys
 import dlt
 import re
+import logging
 
 from pyspark.sql.functions import (
     col,
@@ -11,6 +14,26 @@ from pyspark.sql.functions import (
 from pyspark.sql.types import DecimalType, IntegerType
 from config import get_config
 
+# ------------------------------------------------------------------------------
+# Logger Setup (Best Practice)
+# ------------------------------------------------------------------------------
+LOGGER_NAME = "finance_sap_dim_silver_pipeline"
+
+logger = logging.getLogger(LOGGER_NAME)
+
+if not logger.handlers:  # Prevent duplicate logs in notebook reruns
+    logger.setLevel(logging.INFO)
+
+    handler = logging.StreamHandler(sys.stdout)  # Databricks captures stdout logs
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+    handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+
+RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
+logger.info(f"[RUN_ID={RUN_ID}] Silver Pipeline started")
 
 # -------------------------------
 # Helper Functions
@@ -258,12 +281,13 @@ for folder_name in cfg.z_tables:
     ):
 
         # Logging (visible in DLT Event Logs)
-        print(f"[SILVER-QUARANTINE] ---------------------------------------------")
-        print(f"[SILVER-QUARANTINE] Reading Bronze Table : {bronze_full_name}")
-        print(f"[SILVER-QUARANTINE] Writing Table       : {quarantine_table}")
-        print(f"[SILVER-QUARANTINE] Required Columns    : {required_cols}")
-        print(f"[SILVER-QUARANTINE] Casting Rules       : {casting_rules}")
-        print(f"[SILVER-QUARANTINE] Pipeline Run ID     : {pipeline_run_id}")
+        logger.info(f"Starting quarantine table build for {bronze_table}")
+        logger.info(f"[SILVER-QUARANTINE] ---------------------------------------------")
+        logger.info(f"[SILVER-QUARANTINE] Reading Bronze Table : {bronze_full_name}")
+        logger.info(f"[SILVER-QUARANTINE] Writing Table       : {quarantine_table}")
+        logger.info(f"[SILVER-QUARANTINE] Required Columns    : {required_cols}")
+        logger.info(f"[SILVER-QUARANTINE] Casting Rules       : {casting_rules}")
+        logger.info(f"[SILVER-QUARANTINE] Pipeline Run ID     : {pipeline_run_id}")
 
         # IMPORTANT:
         # Since Bronze and Silver are separate DLT pipelines,
@@ -317,12 +341,12 @@ for folder_name in cfg.z_tables:
     ):
 
         # Logging (visible in DLT Event Logs)
-        print(f"[SILVER] --------------------------------------------------")
-        print(f"[SILVER] Reading Bronze Table : {bronze_full_name}")
-        print(f"[SILVER] Writing Silver Table : {silver_table}")
-        print(f"[SILVER] Required Columns     : {required_cols}")
-        print(f"[SILVER] Casting Rules        : {casting_rules}")
-        print(f"[SILVER] Pipeline Run ID      : {pipeline_run_id}")
+        logger.info(f"[SILVER] --------------------------------------------------")
+        logger.info(f"[SILVER] Reading Bronze Table : {bronze_full_name}")
+        logger.info(f"[SILVER] Writing Silver Table : {silver_table}")
+        logger.info(f"[SILVER] Required Columns     : {required_cols}")
+        logger.info(f"[SILVER] Casting Rules        : {casting_rules}")
+        logger.info(f"[SILVER] Pipeline Run ID      : {pipeline_run_id}")
 
         # Read the bronze table (cross-pipeline read)
         df = spark.table(bronze_full_name)
@@ -362,4 +386,5 @@ for folder_name in cfg.z_tables:
 
         # Step 6: Remove duplicates
         # Ensures stable silver output if bronze has duplicates
+        logger.info(f"[SILVER] Finished building dataframe for silver table: {silver_table}")
         return df.dropDuplicates()

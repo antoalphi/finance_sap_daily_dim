@@ -1,3 +1,6 @@
+import datetime
+import logging
+import sys
 import dlt
 import re
 
@@ -11,6 +14,27 @@ from pyspark.sql.functions import (
 )
 
 from config import get_config
+
+# ------------------------------------------------------------------------------
+# Logger Setup (Best Practice)
+# ------------------------------------------------------------------------------
+LOGGER_NAME = "finance_sap_dim_bronze_pipeline"
+
+logger = logging.getLogger(LOGGER_NAME)
+
+if not logger.handlers:  # Prevent duplicate logs in notebook reruns
+    logger.setLevel(logging.INFO)
+
+    handler = logging.StreamHandler(sys.stdout)  # Databricks captures stdout logs
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    )
+    handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+
+RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
+logger.info(f"[RUN_ID={RUN_ID}] Bronze Pipeline started")
 
 
 # -------------------------------
@@ -109,19 +133,19 @@ for folder_name in cfg.z_tables:
     def load_table(folder_path=folder_path, folder_name=folder_name, table_name=table_name):
 
         # Logging - shows in DLT event logs
-        print(f"[BRONZE] Processing folder: {folder_name}")
-        print(f"[BRONZE] Landing folder path: {folder_path}")
-        print(f"[BRONZE] Target bronze table name: {table_name}")
+        logger.info(f"[BRONZE] Processing folder: {folder_name}")
+        logger.info(f"[BRONZE] Landing folder path: {folder_path}")
+        logger.info(f"[BRONZE] Target bronze table name: {table_name}")
 
         # Get list of all CSV files from landing folder
         csv_files = list_csv_files(folder_path)
 
-        print(f"[BRONZE] Number of CSV files found: {len(csv_files)}")
+        logger.info(f"[BRONZE] Number of CSV files found: {len(csv_files)}")
 
         # If folder is empty, return an empty dataframe to avoid pipeline failure
         # This is important because schema inference fails on empty reads
         if not csv_files:
-            print(f"[BRONZE] No CSV files found in {folder_path}. Returning empty dataframe.")
+            logger.warning(f"[BRONZE] No CSV files found in {folder_path}. Returning empty dataframe.")
             return spark.createDataFrame([], schema="dummy STRING").limit(0)
 
         dfs = []
@@ -132,8 +156,8 @@ for folder_name in cfg.z_tables:
             # Detect delimiter dynamically
             delim = detect_delimiter(file_path)
 
-            print(f"[BRONZE] Reading file: {file_path}")
-            print(f"[BRONZE] Detected delimiter: '{delim}'")
+            logger.info(f"[BRONZE] Reading file: {file_path}")
+            logger.info(f"[BRONZE] Detected delimiter: '{delim}'")
 
             # Read CSV file
             # inferSchema is okay for Bronze, because Bronze is raw ingestion
@@ -161,7 +185,7 @@ for folder_name in cfg.z_tables:
 
         # Union all files into one dataframe
         # unionByName ensures correct mapping even if column order differs between files
-        print(f"[BRONZE] Unioning {len(dfs)} dataframe(s) into final bronze table: {table_name}")
+        logger.info(f"[BRONZE] Unioning {len(dfs)} dataframe(s) into final bronze table: {table_name}")
         final_df = reduce(DataFrame.unionByName, dfs)
 
         # NOTE (Optional Enhancement):
@@ -169,6 +193,6 @@ for folder_name in cfg.z_tables:
         # record_hash = sha2(concat_ws("||", *final_df.columns), 256)
         # final_df = final_df.withColumn("_record_hash", record_hash)
 
-        print(f"[BRONZE] Finished building dataframe for bronze table: {table_name}")
+        logger.info(f"[BRONZE] Finished building dataframe for bronze table: {table_name}")
 
         return final_df
