@@ -13,6 +13,7 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.types import DecimalType, IntegerType
 from config import get_config
+from dedup_config import DEDUP_KEYS
 
 
 # ------------------------------------------------------------------------------
@@ -152,6 +153,9 @@ def get_good_records(df, required_cols: list):
 
     return df.filter(condition)
 
+def apply_dedup(df, table_name):
+    keys = DEDUP_KEYS.get(table_name)
+    return df.dropDuplicates(keys) if keys else df.dropDuplicates()
 
 # -------------------------------
 # Config
@@ -268,7 +272,8 @@ for folder_name in cfg.z_tables:
         )
 
         # Step 6: Remove duplicates
-        df = df.dropDuplicates()
+        df = apply_dedup(df, bronze_table)
+        #df = df.dropDuplicates()
 
         logger.info(f"[SILVER] Finished building dataframe for silver table: {silver_table}")
 
